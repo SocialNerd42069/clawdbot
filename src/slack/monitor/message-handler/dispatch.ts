@@ -47,6 +47,12 @@ export async function dispatchPreparedSlackMessage(prepared: PreparedSlackMessag
   const toolThreadTs = incomingThreadTs ?? (ctx.replyToMode === "all" ? messageTs : undefined);
   let didSetStatus = false;
 
+  if (shouldLogVerbose()) {
+    logVerbose(
+      `slack threading: inbound channel=${message.channel} ts=${messageTs ?? "unknown"} thread_ts=${incomingThreadTs ?? "none"} replyToMode=${ctx.replyToMode}`,
+    );
+  }
+
   // Shared mutable ref for "replyToMode=first". Both tool + auto-reply flows
   // mark this to ensure only the first reply is threaded.
   const hasRepliedRef = { value: false };
