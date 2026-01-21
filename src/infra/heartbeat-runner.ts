@@ -88,7 +88,10 @@ function hasExplicitHeartbeatAgents(cfg: ClawdbotConfig) {
   return list.some((entry) => Boolean(entry?.heartbeat));
 }
 
-export function isHeartbeatEnabledForAgent(cfg: ClawdbotConfig, agentId?: string): boolean {
+export function isHeartbeatEnabledForAgent(
+  agentId: string | undefined,
+  cfg: ClawdbotConfig,
+): boolean {
   const resolvedAgentId = normalizeAgentId(agentId ?? resolveDefaultAgentId(cfg));
   const list = cfg.agents?.list ?? [];
   const hasExplicit = hasExplicitHeartbeatAgents(cfg);
@@ -117,7 +120,7 @@ export function resolveHeartbeatSummaryForAgent(
 ): HeartbeatSummary {
   const defaults = cfg.agents?.defaults?.heartbeat;
   const overrides = agentId ? resolveAgentConfig(cfg, agentId)?.heartbeat : undefined;
-  const enabled = isHeartbeatEnabledForAgent(cfg, agentId);
+  const enabled = isHeartbeatEnabledForAgent(agentId, cfg);
 
   if (!enabled) {
     return {
@@ -334,7 +337,7 @@ export async function runHeartbeatOnce(opts: {
   if (!heartbeatsEnabled) {
     return { status: "skipped", reason: "disabled" };
   }
-  if (!isHeartbeatEnabledForAgent(cfg, agentId)) {
+  if (!isHeartbeatEnabledForAgent(agentId, cfg)) {
     return { status: "skipped", reason: "disabled" };
   }
   if (!resolveHeartbeatIntervalMs(cfg, undefined, heartbeat)) {
