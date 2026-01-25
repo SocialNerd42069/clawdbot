@@ -24,7 +24,7 @@ Background sessions are scoped per agent; `process` only sees sessions from the 
 - `security` (`deny | allowlist | full`): enforcement mode for `gateway`/`node`
 - `ask` (`off | on-miss | always`): approval prompts for `gateway`/`node`
 - `node` (string): node id/name for `host=node`
-- `elevated` (bool): alias for `host=gateway` + `security=full` when sandboxed and allowed
+- `elevated` (bool): request elevated mode (gateway host); `security=full` is only forced when elevated resolves to `full`
 
 Notes:
 - `host` defaults to `sandbox`.
@@ -66,8 +66,8 @@ Example:
 - `host=sandbox`: runs `sh -lc` (login shell) inside the container, so `/etc/profile` may reset `PATH`.
   Clawdbot prepends `env.PATH` after profile sourcing; `tools.exec.pathPrepend` applies here too.
 - `host=node`: only env overrides you pass are sent to the node. `tools.exec.pathPrepend` only applies
-  if the exec call already sets `env.PATH`. Node PATH overrides are accepted only when they prepend
-  the node host PATH (no replacement).
+  if the exec call already sets `env.PATH`. Headless node hosts accept `PATH` only when it prepends
+  the node host PATH (no replacement). macOS nodes drop `PATH` overrides entirely.
 
 Per-agent node binding (use the agent list index in config):
 

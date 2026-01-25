@@ -165,10 +165,24 @@ function buildChatCommands(): ChatCommandDefinition[] {
       scope: "text",
     }),
     defineChatCommand({
+      key: "approve",
+      nativeName: "approve",
+      description: "Approve or deny exec requests.",
+      textAlias: "/approve",
+      acceptsArgs: true,
+    }),
+    defineChatCommand({
       key: "context",
       nativeName: "context",
       description: "Explain how context is built and used.",
       textAlias: "/context",
+      acceptsArgs: true,
+    }),
+    defineChatCommand({
+      key: "tts",
+      nativeName: "tts",
+      description: "Configure text-to-speech.",
+      textAlias: "/tts",
       acceptsArgs: true,
     }),
     defineChatCommand({

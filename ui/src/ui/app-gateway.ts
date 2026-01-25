@@ -124,6 +124,7 @@ export function connectGateway(host: GatewayHost) {
     mode: "webchat",
     onHello: (hello) => {
       host.connected = true;
+      host.lastError = null;
       host.hello = hello;
       applySnapshot(host, hello);
       void loadAssistantIdentity(host as unknown as ClawdbotApp);
@@ -134,7 +135,10 @@ export function connectGateway(host: GatewayHost) {
     },
     onClose: ({ code, reason }) => {
       host.connected = false;
-      host.lastError = `disconnected (${code}): ${reason || "no reason"}`;
+      // Code 1012 = Service Restart (expected during config saves, don't show as error)
+      if (code !== 1012) {
+        host.lastError = `disconnected (${code}): ${reason || "no reason"}`;
+      }
     },
     onEvent: (evt) => handleGatewayEvent(host, evt),
     onGap: ({ expected, received }) => {
@@ -145,6 +149,14 @@ export function connectGateway(host: GatewayHost) {
 }
 
 export function handleGatewayEvent(host: GatewayHost, evt: GatewayEventFrame) {
+  try {
+    handleGatewayEventUnsafe(host, evt);
+  } catch (err) {
+    console.error("[gateway] handleGatewayEvent error:", evt.event, err);
+  }
+}
+
+function handleGatewayEventUnsafe(host: GatewayHost, evt: GatewayEventFrame) {
   host.eventLogBuffer = [
     { ts: Date.now(), event: evt.event, payload: evt.payload },
     ...host.eventLogBuffer,

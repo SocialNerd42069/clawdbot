@@ -53,6 +53,55 @@ describe("security audit", () => {
     ).toBe(true);
   });
 
+  it("warns when loopback control UI lacks trusted proxies", async () => {
+    const cfg: ClawdbotConfig = {
+      gateway: {
+        bind: "loopback",
+        controlUi: { enabled: true },
+      },
+    };
+
+    const res = await runSecurityAudit({
+      config: cfg,
+      includeFilesystem: false,
+      includeChannelSecurity: false,
+    });
+
+    expect(res.findings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          checkId: "gateway.trusted_proxies_missing",
+          severity: "warn",
+        }),
+      ]),
+    );
+  });
+
+  it("flags loopback control UI without auth as critical", async () => {
+    const cfg: ClawdbotConfig = {
+      gateway: {
+        bind: "loopback",
+        controlUi: { enabled: true },
+        auth: { mode: "none" as any },
+      },
+    };
+
+    const res = await runSecurityAudit({
+      config: cfg,
+      includeFilesystem: false,
+      includeChannelSecurity: false,
+    });
+
+    expect(res.findings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          checkId: "gateway.loopback_no_auth",
+          severity: "critical",
+        }),
+      ]),
+    );
+  });
+
   it("flags logging.redactSensitive=off", async () => {
     const cfg: ClawdbotConfig = {
       logging: { redactSensitive: "off" },
@@ -654,6 +703,31 @@ describe("security audit", () => {
         expect.objectContaining({ checkId: "hooks.token_too_short", severity: "warn" }),
       ]),
     );
+  });
+
+  it("warns when hooks token reuses the gateway env token", async () => {
+    const prevToken = process.env.CLAWDBOT_GATEWAY_TOKEN;
+    process.env.CLAWDBOT_GATEWAY_TOKEN = "shared-gateway-token-1234567890";
+    const cfg: ClawdbotConfig = {
+      hooks: { enabled: true, token: "shared-gateway-token-1234567890" },
+    };
+
+    try {
+      const res = await runSecurityAudit({
+        config: cfg,
+        includeFilesystem: false,
+        includeChannelSecurity: false,
+      });
+
+      expect(res.findings).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ checkId: "hooks.token_reuse_gateway_token", severity: "warn" }),
+        ]),
+      );
+    } finally {
+      if (prevToken === undefined) delete process.env.CLAWDBOT_GATEWAY_TOKEN;
+      else process.env.CLAWDBOT_GATEWAY_TOKEN = prevToken;
+    }
   });
 
   it("warns when state/config look like a synced folder", async () => {

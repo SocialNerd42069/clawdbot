@@ -42,7 +42,11 @@ const runtimeStub = {
   channel: {
     text: {
       resolveTextChunkLimit: () => 4000,
+      resolveChunkMode: () => "length",
       chunkMarkdownText: (text: string) => (text ? [text] : []),
+      chunkMarkdownTextWithMode: (text: string) => (text ? [text] : []),
+      resolveMarkdownTableMode: () => "code",
+      convertMarkdownTables: (text: string) => text,
     },
   },
 } as unknown as PluginRuntime;

@@ -30,7 +30,7 @@ The onboarding wizard generates a gateway token by default, so paste it here on 
 ## What it can do (today)
 - Chat with the model via Gateway WS (`chat.history`, `chat.send`, `chat.abort`, `chat.inject`)
 - Stream tool calls + live tool output cards in Chat (agent events)
-- Channels: WhatsApp/Telegram status + QR login + per-channel config (`channels.status`, `web.login.*`, `config.patch`)
+- Channels: WhatsApp/Telegram/Discord/Slack + plugin channels (Mattermost, etc.) status + QR login + per-channel config (`channels.status`, `web.login.*`, `config.patch`)
 - Instances: presence list + refresh (`system-presence`)
 - Sessions: list + per-session thinking/verbose overrides (`sessions.list`, `sessions.patch`)
 - Cron jobs: list/add/run/enable/disable + run history (`cron.*`)
@@ -108,8 +108,8 @@ Clawdbot **blocks** Control UI connections without device identity.
 }
 ```
 
-This disables device identity + pairing for the Control UI. Use only if you
-trust the network.
+This disables device identity + pairing for the Control UI (even on HTTPS). Use
+only if you trust the network.
 
 See [Tailscale](/gateway/tailscale) for HTTPS setup guidance.
 

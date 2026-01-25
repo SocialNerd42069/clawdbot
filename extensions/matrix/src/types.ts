@@ -18,6 +18,8 @@ export type MatrixRoomConfig = {
   allow?: boolean;
   /** Require mentioning the bot to trigger replies. */
   requireMention?: boolean;
+  /** Optional tool policy overrides for this room. */
+  tools?: { allow?: string[]; deny?: string[] };
   /** If true, reply without mention requirements. */
   autoReply?: boolean;
   /** Optional allowlist for room senders (user IDs or localparts). */
@@ -67,6 +69,8 @@ export type MatrixConfig = {
   threadReplies?: "off" | "inbound" | "always";
   /** Outbound text chunk size (chars). Default: 4000. */
   textChunkLimit?: number;
+  /** Chunking mode: "length" (default) splits by size; "newline" splits on every newline. */
+  chunkMode?: "length" | "newline";
   /** Max outbound media size in MB. */
   mediaMaxMb?: number;
   /** Auto-join invites (always|allowlist|off). Default: always. */

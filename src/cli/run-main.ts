@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -10,7 +11,7 @@ import { assertSupportedRuntime } from "../infra/runtime-guard.js";
 import { formatUncaughtError } from "../infra/errors.js";
 import { installUnhandledRejectionHandler } from "../infra/unhandled-rejections.js";
 import { enableConsoleCapture } from "../logging.js";
-import { getPrimaryCommand, hasHelpOrVersion } from "./argv.js";
+import { getPrimaryCommand } from "./argv.js";
 import { tryRouteCli } from "./route.js";
 
 export function rewriteUpdateFlagArgv(argv: string[]): string[] {
@@ -49,12 +50,11 @@ export async function runCli(argv: string[] = process.argv) {
   });
 
   const parseArgv = rewriteUpdateFlagArgv(normalizedArgv);
-  if (hasHelpOrVersion(parseArgv)) {
-    const primary = getPrimaryCommand(parseArgv);
-    if (primary) {
-      const { registerSubCliByName } = await import("./program/register.subclis.js");
-      await registerSubCliByName(program, primary);
-    }
+  // Register the primary subcommand if one exists (for lazy-loading)
+  const primary = getPrimaryCommand(parseArgv);
+  if (primary) {
+    const { registerSubCliByName } = await import("./program/register.subclis.js");
+    await registerSubCliByName(program, primary);
   }
   await program.parseAsync(parseArgv);
 }
@@ -82,13 +82,16 @@ function stripWindowsNodeExec(argv: string[]): string[] {
   const execBase = path.basename(execPath).toLowerCase();
   const isExecPath = (value: string | undefined): boolean => {
     if (!value) return false;
-    const lower = normalizeCandidate(value).toLowerCase();
+    const normalized = normalizeCandidate(value);
+    if (!normalized) return false;
+    const lower = normalized.toLowerCase();
     return (
       lower === execPathLower ||
       path.basename(lower) === execBase ||
       lower.endsWith("\\node.exe") ||
       lower.endsWith("/node.exe") ||
-      lower.includes("node.exe")
+      lower.includes("node.exe") ||
+      (path.basename(lower) === "node.exe" && fs.existsSync(normalized))
     );
   };
   const filtered = argv.filter((arg, index) => index === 0 || !isExecPath(arg));
