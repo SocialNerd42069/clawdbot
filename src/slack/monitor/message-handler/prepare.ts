@@ -455,7 +455,6 @@ export async function prepareSlackMessage(params: {
       GroupSubject: isRoomish ? roomLabel : undefined,
       From: slackFrom,
     }) ?? (isDirectMessage ? senderName : roomLabel);
-  const textWithId = `${rawBody}\n[slack message id: ${message.ts} channel: ${message.channel}]`;
   const storePath = resolveStorePath(ctx.cfg.session?.store, {
     agentId: route.agentId,
   });
@@ -468,7 +467,7 @@ export async function prepareSlackMessage(params: {
     channel: "Slack",
     from: envelopeFrom,
     timestamp: message.ts ? Math.round(Number(message.ts) * 1000) : undefined,
-    body: textWithId,
+    body: rawBody,
     chatType: isDirectMessage ? "direct" : "channel",
     sender: { name: senderName, id: senderId },
     previousTimestamp,
@@ -487,9 +486,7 @@ export async function prepareSlackMessage(params: {
           channel: "Slack",
           from: roomLabel,
           timestamp: entry.timestamp,
-          body: `${entry.body}${
-            entry.messageId ? ` [id:${entry.messageId} channel:${message.channel}]` : ""
-          }`,
+          body: entry.body,
           chatType: "channel",
           senderLabel: entry.sender,
           envelope: envelopeOptions,
@@ -523,12 +520,11 @@ export async function prepareSlackMessage(params: {
     if (starter?.text) {
       const starterUser = starter.userId ? await ctx.resolveUserName(starter.userId) : null;
       const starterName = starterUser?.name ?? starter.userId ?? "Unknown";
-      const starterWithId = `${starter.text}\n[slack message id: ${starter.ts ?? threadTs} channel: ${message.channel}]`;
       threadStarterBody = formatThreadStarterEnvelope({
         channel: "Slack",
         author: starterName,
         timestamp: starter.ts ? Math.round(Number(starter.ts) * 1000) : undefined,
-        body: starterWithId,
+        body: starter.text,
         envelope: envelopeOptions,
       });
       const snippet = starter.text.replace(/\s+/g, " ").slice(0, 80);
