@@ -242,6 +242,7 @@ export function createFollowupRunner(params: {
         originatingTo: queued.originatingTo,
         originatingThreadId: queued.originatingThreadId,
         accountId: queued.run.agentAccountId,
+        replyToMode,
       });
       const finalPayloads = suppressMessagingToolReplies ? [] : dedupedPayloads;
 
