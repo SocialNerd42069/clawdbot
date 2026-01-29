@@ -16,28 +16,6 @@ RUN if [ -n "$CLAWDBOT_DOCKER_APT_PACKAGES" ]; then \
       rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*; \
     fi
 
-# Bake required binaries into image (critical for persistence)
-# GitHub CLI
-RUN curl -fsSL https://github.com/cli/cli/releases/download/v2.86.0/gh_2.86.0_linux_amd64.tar.gz | \
-    tar -xz --strip-components=1 -C /tmp && \
-    mv /tmp/bin/gh /usr/local/bin/gh && \
-    chmod +x /usr/local/bin/gh && \
-    rm -rf /tmp/bin /tmp/etc
-
-# Gmail CLI (gogcli) - binary is 'gog' inside tarball
-RUN curl -fsSL https://github.com/steipete/gogcli/releases/download/v0.9.0/gogcli_0.9.0_linux_amd64.tar.gz | \
-    tar -xz -C /tmp && \
-    mv /tmp/gog /usr/local/bin/gog && \
-    chmod +x /usr/local/bin/gog && \
-    rm -rf /tmp/gog /tmp/CHANGELOG.md /tmp/LICENSE /tmp/README.md
-
-# Google Places CLI (goplaces)
-RUN curl -fsSL https://github.com/steipete/goplaces/releases/download/v0.2.1/goplaces_0.2.1_linux_amd64.tar.gz | \
-    tar -xz -C /usr/local/bin && chmod +x /usr/local/bin/goplaces
-
-# SSH (for git operations)
-RUN apt-get update && apt-get install -y openssh-client && rm -rf /var/lib/apt/lists/*
-
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY ui/package.json ./ui/package.json
 COPY patches ./patches
@@ -46,7 +24,7 @@ COPY scripts ./scripts
 RUN pnpm install --frozen-lockfile
 
 COPY . .
-RUN pnpm build
+RUN CLAWDBOT_A2UI_SKIP_MISSING=1 pnpm build
 # Force pnpm for UI build (Bun may fail on ARM/Synology architectures)
 ENV CLAWDBOT_PREFER_PNPM=1
 RUN pnpm ui:install
@@ -54,4 +32,9 @@ RUN pnpm ui:build
 
 ENV NODE_ENV=production
 
-CMD ["node","dist/index.js"]
+# Security hardening: Run as non-root user
+# The node:22-bookworm image includes a 'node' user (uid 1000)
+# This reduces the attack surface by preventing container escape via root privileges
+USER node
+
+CMD ["node", "dist/index.js"]

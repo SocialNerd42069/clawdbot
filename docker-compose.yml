@@ -1,6 +1,6 @@
 services:
-  clawdbot-gateway:
-    image: ${CLAWDBOT_IMAGE:-sparky:latest}
+  moltbot-gateway:
+    image: ${CLAWDBOT_IMAGE:-moltbot:local}
     environment:
       HOME: /home/node
       TERM: xterm-256color
@@ -8,21 +8,12 @@ services:
       CLAUDE_AI_SESSION_KEY: ${CLAUDE_AI_SESSION_KEY}
       CLAUDE_WEB_SESSION_KEY: ${CLAUDE_WEB_SESSION_KEY}
       CLAUDE_WEB_COOKIE: ${CLAUDE_WEB_COOKIE}
-      # GitHub auth
-      GITHUB_TOKEN: ${GITHUB_TOKEN}
-      GH_TOKEN: ${GH_TOKEN}
-      # Google/gog auth
-      GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS}
-      GOG_KEYRING_PASSWORD: ${GOG_KEYRING_PASSWORD}
-      # Airtable auth
-      AIRTABLE_TOKEN: ${AIRTABLE_TOKEN}
-      AIRTABLE_BASE_ID: ${AIRTABLE_BASE_ID}
     volumes:
       - ${CLAWDBOT_CONFIG_DIR}:/home/node/.clawdbot
       - ${CLAWDBOT_WORKSPACE_DIR}:/home/node/clawd
     ports:
-      # Loopback only - access via SSH tunnel for security
-      - "127.0.0.1:${CLAWDBOT_GATEWAY_PORT:-18789}:18789"
+      - "${CLAWDBOT_GATEWAY_PORT:-18789}:18789"
+      - "${CLAWDBOT_BRIDGE_PORT:-18790}:18790"
     init: true
     restart: unless-stopped
     command:
@@ -31,13 +22,13 @@ services:
         "dist/index.js",
         "gateway",
         "--bind",
-        "${CLAWDBOT_GATEWAY_BIND:-loopback}",
+        "${CLAWDBOT_GATEWAY_BIND:-lan}",
         "--port",
         "${CLAWDBOT_GATEWAY_PORT:-18789}"
       ]
 
-  clawdbot-cli:
-    image: ${CLAWDBOT_IMAGE:-sparky:latest}
+  moltbot-cli:
+    image: ${CLAWDBOT_IMAGE:-moltbot:local}
     environment:
       HOME: /home/node
       TERM: xterm-256color
@@ -45,12 +36,6 @@ services:
       CLAUDE_AI_SESSION_KEY: ${CLAUDE_AI_SESSION_KEY}
       CLAUDE_WEB_SESSION_KEY: ${CLAUDE_WEB_SESSION_KEY}
       CLAUDE_WEB_COOKIE: ${CLAUDE_WEB_COOKIE}
-      GITHUB_TOKEN: ${GITHUB_TOKEN}
-      GH_TOKEN: ${GH_TOKEN}
-      GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS}
-      GOG_KEYRING_PASSWORD: ${GOG_KEYRING_PASSWORD}
-      AIRTABLE_TOKEN: ${AIRTABLE_TOKEN}
-      AIRTABLE_BASE_ID: ${AIRTABLE_BASE_ID}
     volumes:
       - ${CLAWDBOT_CONFIG_DIR}:/home/node/.clawdbot
       - ${CLAWDBOT_WORKSPACE_DIR}:/home/node/clawd
