@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from "vitest";
-
 import type { runExec } from "../process/exec.js";
 import type { RuntimeEnv } from "../runtime.js";
 import { ensureBinary } from "./binaries.js";
@@ -20,19 +19,15 @@ describe("ensureBinary", () => {
   });
 
   it("logs and exits when missing", async () => {
-    const exec: typeof runExec = vi
-      .fn()
-      .mockRejectedValue(new Error("missing"));
+    const exec: typeof runExec = vi.fn().mockRejectedValue(new Error("missing"));
     const error = vi.fn();
     const exit = vi.fn(() => {
       throw new Error("exit");
     });
-    await expect(
-      ensureBinary("ghost", exec, { log: vi.fn(), error, exit }),
-    ).rejects.toThrow("exit");
-    expect(error).toHaveBeenCalledWith(
-      "Missing required binary: ghost. Please install it.",
+    await expect(ensureBinary("ghost", exec, { log: vi.fn(), error, exit })).rejects.toThrow(
+      "exit",
     );
+    expect(error).toHaveBeenCalledWith("Missing required binary: ghost. Please install it.");
     expect(exit).toHaveBeenCalledWith(1);
   });
 });

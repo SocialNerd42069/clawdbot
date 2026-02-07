@@ -1,99 +1,80 @@
+import { fileTypeFromBuffer } from "file-type";
 import path from "node:path";
-
 import { type MediaKind, mediaKindFromMime } from "./constants.js";
 
 // Map common mimes to preferred file extensions.
 const EXT_BY_MIME: Record<string, string> = {
+  "image/heic": ".heic",
+  "image/heif": ".heif",
   "image/jpeg": ".jpg",
   "image/png": ".png",
   "image/webp": ".webp",
   "image/gif": ".gif",
   "audio/ogg": ".ogg",
   "audio/mpeg": ".mp3",
+  "audio/x-m4a": ".m4a",
+  "audio/mp4": ".m4a",
   "video/mp4": ".mp4",
+  "video/quicktime": ".mov",
   "application/pdf": ".pdf",
+  "application/json": ".json",
+  "application/zip": ".zip",
+  "application/gzip": ".gz",
+  "application/x-tar": ".tar",
+  "application/x-7z-compressed": ".7z",
+  "application/vnd.rar": ".rar",
+  "application/msword": ".doc",
+  "application/vnd.ms-excel": ".xls",
+  "application/vnd.ms-powerpoint": ".ppt",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ".xlsx",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation": ".pptx",
+  "text/csv": ".csv",
   "text/plain": ".txt",
+  "text/markdown": ".md",
 };
 
-const MIME_BY_EXT: Record<string, string> = Object.fromEntries(
-  Object.entries(EXT_BY_MIME).map(([mime, ext]) => [ext, mime]),
-);
+const MIME_BY_EXT: Record<string, string> = {
+  ...Object.fromEntries(Object.entries(EXT_BY_MIME).map(([mime, ext]) => [ext, mime])),
+  // Additional extension aliases
+  ".jpeg": "image/jpeg",
+};
+
+const AUDIO_FILE_EXTENSIONS = new Set([
+  ".aac",
+  ".flac",
+  ".m4a",
+  ".mp3",
+  ".oga",
+  ".ogg",
+  ".opus",
+  ".wav",
+]);
 
 function normalizeHeaderMime(mime?: string | null): string | undefined {
-  if (!mime) return undefined;
+  if (!mime) {
+    return undefined;
+  }
   const cleaned = mime.split(";")[0]?.trim().toLowerCase();
   return cleaned || undefined;
 }
 
-function sniffMime(buffer?: Buffer): string | undefined {
-  if (!buffer || buffer.length < 4) return undefined;
-
-  // JPEG: FF D8 FF
-  if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
-    return "image/jpeg";
+async function sniffMime(buffer?: Buffer): Promise<string | undefined> {
+  if (!buffer) {
+    return undefined;
   }
-
-  // PNG: 89 50 4E 47 0D 0A 1A 0A
-  if (
-    buffer.length >= 8 &&
-    buffer[0] === 0x89 &&
-    buffer[1] === 0x50 &&
-    buffer[2] === 0x4e &&
-    buffer[3] === 0x47 &&
-    buffer[4] === 0x0d &&
-    buffer[5] === 0x0a &&
-    buffer[6] === 0x1a &&
-    buffer[7] === 0x0a
-  ) {
-    return "image/png";
+  try {
+    const type = await fileTypeFromBuffer(buffer);
+    return type?.mime ?? undefined;
+  } catch {
+    return undefined;
   }
-
-  // GIF: GIF87a / GIF89a
-  if (buffer.length >= 6) {
-    const sig = buffer.subarray(0, 6).toString("ascii");
-    if (sig === "GIF87a" || sig === "GIF89a") return "image/gif";
-  }
-
-  // WebP: RIFF....WEBP
-  if (
-    buffer.length >= 12 &&
-    buffer.subarray(0, 4).toString("ascii") === "RIFF" &&
-    buffer.subarray(8, 12).toString("ascii") === "WEBP"
-  ) {
-    return "image/webp";
-  }
-
-  // PDF: %PDF-
-  if (buffer.subarray(0, 5).toString("ascii") === "%PDF-") {
-    return "application/pdf";
-  }
-
-  // Ogg / Opus: OggS
-  if (buffer.subarray(0, 4).toString("ascii") === "OggS") {
-    return "audio/ogg";
-  }
-
-  // MP3: ID3 tag or frame sync FF E0+.
-  if (buffer.subarray(0, 3).toString("ascii") === "ID3") {
-    return "audio/mpeg";
-  }
-  if (buffer[0] === 0xff && (buffer[1] & 0xe0) === 0xe0) {
-    return "audio/mpeg";
-  }
-
-  // MP4: "ftyp" at offset 4.
-  if (
-    buffer.length >= 12 &&
-    buffer.subarray(4, 8).toString("ascii") === "ftyp"
-  ) {
-    return "video/mp4";
-  }
-
-  return undefined;
 }
 
-function extFromPath(filePath?: string): string | undefined {
-  if (!filePath) return undefined;
+export function getFileExtension(filePath?: string | null): string | undefined {
+  if (!filePath) {
+    return undefined;
+  }
   try {
     if (/^https?:\/\//i.test(filePath)) {
       const url = new URL(filePath);
@@ -106,26 +87,101 @@ function extFromPath(filePath?: string): string | undefined {
   return ext || undefined;
 }
 
+export function isAudioFileName(fileName?: string | null): boolean {
+  const ext = getFileExtension(fileName);
+  if (!ext) {
+    return false;
+  }
+  return AUDIO_FILE_EXTENSIONS.has(ext);
+}
+
 export function detectMime(opts: {
   buffer?: Buffer;
   headerMime?: string | null;
   filePath?: string;
-}): string | undefined {
-  const sniffed = sniffMime(opts.buffer);
-  if (sniffed) return sniffed;
+}): Promise<string | undefined> {
+  return detectMimeImpl(opts);
+}
+
+function isGenericMime(mime?: string): boolean {
+  if (!mime) {
+    return true;
+  }
+  const m = mime.toLowerCase();
+  return m === "application/octet-stream" || m === "application/zip";
+}
+
+async function detectMimeImpl(opts: {
+  buffer?: Buffer;
+  headerMime?: string | null;
+  filePath?: string;
+}): Promise<string | undefined> {
+  const ext = getFileExtension(opts.filePath);
+  const extMime = ext ? MIME_BY_EXT[ext] : undefined;
 
   const headerMime = normalizeHeaderMime(opts.headerMime);
-  if (headerMime) return headerMime;
+  const sniffed = await sniffMime(opts.buffer);
 
-  const ext = extFromPath(opts.filePath);
-  if (ext && MIME_BY_EXT[ext]) return MIME_BY_EXT[ext];
+  // Prefer sniffed types, but don't let generic container types override a more
+  // specific extension mapping (e.g. XLSX vs ZIP).
+  if (sniffed && (!isGenericMime(sniffed) || !extMime)) {
+    return sniffed;
+  }
+  if (extMime) {
+    return extMime;
+  }
+  if (headerMime && !isGenericMime(headerMime)) {
+    return headerMime;
+  }
+  if (sniffed) {
+    return sniffed;
+  }
+  if (headerMime) {
+    return headerMime;
+  }
 
   return undefined;
 }
 
 export function extensionForMime(mime?: string | null): string | undefined {
-  if (!mime) return undefined;
+  if (!mime) {
+    return undefined;
+  }
   return EXT_BY_MIME[mime.toLowerCase()];
+}
+
+export function isGifMedia(opts: {
+  contentType?: string | null;
+  fileName?: string | null;
+}): boolean {
+  if (opts.contentType?.toLowerCase() === "image/gif") {
+    return true;
+  }
+  const ext = getFileExtension(opts.fileName);
+  return ext === ".gif";
+}
+
+export function imageMimeFromFormat(format?: string | null): string | undefined {
+  if (!format) {
+    return undefined;
+  }
+  switch (format.toLowerCase()) {
+    case "jpg":
+    case "jpeg":
+      return "image/jpeg";
+    case "heic":
+      return "image/heic";
+    case "heif":
+      return "image/heif";
+    case "png":
+      return "image/png";
+    case "webp":
+      return "image/webp";
+    case "gif":
+      return "image/gif";
+    default:
+      return undefined;
+  }
 }
 
 export function kindFromMime(mime?: string | null): MediaKind {

@@ -1,10 +1,33 @@
 import { execFile, spawn } from "node:child_process";
+import path from "node:path";
 import { promisify } from "node:util";
-
-import { danger, isVerbose } from "../globals.js";
+import { danger, shouldLogVerbose } from "../globals.js";
 import { logDebug, logError } from "../logger.js";
+import { resolveCommandStdio } from "./spawn-utils.js";
 
 const execFileAsync = promisify(execFile);
+
+/**
+ * Resolves a command for Windows compatibility.
+ * On Windows, non-.exe commands (like npm, pnpm) require their .cmd extension.
+ */
+function resolveCommand(command: string): string {
+  if (process.platform !== "win32") {
+    return command;
+  }
+  const basename = path.basename(command).toLowerCase();
+  // Skip if already has an extension (.cmd, .exe, .bat, etc.)
+  const ext = path.extname(basename);
+  if (ext) {
+    return command;
+  }
+  // Common npm-related commands that need .cmd extension on Windows
+  const cmdCommands = ["npm", "pnpm", "yarn", "npx"];
+  if (cmdCommands.includes(basename)) {
+    return `${command}.cmd`;
+  }
+  return command;
+}
 
 // Simple promise-wrapped execFile with optional verbosity logging.
 export async function runExec(
@@ -21,14 +44,18 @@ export async function runExec(
           encoding: "utf8" as const,
         };
   try {
-    const { stdout, stderr } = await execFileAsync(command, args, options);
-    if (isVerbose()) {
-      if (stdout.trim()) logDebug(stdout.trim());
-      if (stderr.trim()) logError(stderr.trim());
+    const { stdout, stderr } = await execFileAsync(resolveCommand(command), args, options);
+    if (shouldLogVerbose()) {
+      if (stdout.trim()) {
+        logDebug(stdout.trim());
+      }
+      if (stderr.trim()) {
+        logError(stderr.trim());
+      }
     }
     return { stdout, stderr };
   } catch (err) {
-    if (isVerbose()) {
+    if (shouldLogVerbose()) {
       logError(danger(`Command failed: ${command} ${args.join(" ")}`));
     }
     throw err;
@@ -46,6 +73,9 @@ export type SpawnResult = {
 export type CommandOptions = {
   timeoutMs: number;
   cwd?: string;
+  input?: string;
+  env?: NodeJS.ProcessEnv;
+  windowsVerbatimArguments?: boolean;
 };
 
 export async function runCommandWithTimeout(
@@ -53,23 +83,55 @@ export async function runCommandWithTimeout(
   optionsOrTimeout: number | CommandOptions,
 ): Promise<SpawnResult> {
   const options: CommandOptions =
-    typeof optionsOrTimeout === "number"
-      ? { timeoutMs: optionsOrTimeout }
-      : optionsOrTimeout;
-  const { timeoutMs, cwd } = options;
+    typeof optionsOrTimeout === "number" ? { timeoutMs: optionsOrTimeout } : optionsOrTimeout;
+  const { timeoutMs, cwd, input, env } = options;
+  const { windowsVerbatimArguments } = options;
+  const hasInput = input !== undefined;
 
-  // Spawn with inherited stdin (TTY) so tools like `claude` don't hang.
+  const shouldSuppressNpmFund = (() => {
+    const cmd = path.basename(argv[0] ?? "");
+    if (cmd === "npm" || cmd === "npm.cmd" || cmd === "npm.exe") {
+      return true;
+    }
+    if (cmd === "node" || cmd === "node.exe") {
+      const script = argv[1] ?? "";
+      return script.includes("npm-cli.js");
+    }
+    return false;
+  })();
+
+  const resolvedEnv = env ? { ...process.env, ...env } : { ...process.env };
+  if (shouldSuppressNpmFund) {
+    if (resolvedEnv.NPM_CONFIG_FUND == null) {
+      resolvedEnv.NPM_CONFIG_FUND = "false";
+    }
+    if (resolvedEnv.npm_config_fund == null) {
+      resolvedEnv.npm_config_fund = "false";
+    }
+  }
+
+  const stdio = resolveCommandStdio({ hasInput, preferInherit: true });
+  const child = spawn(resolveCommand(argv[0]), argv.slice(1), {
+    stdio,
+    cwd,
+    env: resolvedEnv,
+    windowsVerbatimArguments,
+  });
+  // Spawn with inherited stdin (TTY) so tools like `pi` stay interactive when needed.
   return await new Promise((resolve, reject) => {
-    const child = spawn(argv[0], argv.slice(1), {
-      stdio: ["inherit", "pipe", "pipe"],
-      cwd,
-    });
     let stdout = "";
     let stderr = "";
     let settled = false;
     const timer = setTimeout(() => {
-      child.kill("SIGKILL");
+      if (typeof child.kill === "function") {
+        child.kill("SIGKILL");
+      }
     }, timeoutMs);
+
+    if (hasInput && child.stdin) {
+      child.stdin.write(input ?? "");
+      child.stdin.end();
+    }
 
     child.stdout?.on("data", (d) => {
       stdout += d.toString();
@@ -78,13 +140,17 @@ export async function runCommandWithTimeout(
       stderr += d.toString();
     });
     child.on("error", (err) => {
-      if (settled) return;
+      if (settled) {
+        return;
+      }
       settled = true;
       clearTimeout(timer);
       reject(err);
     });
     child.on("close", (code, signal) => {
-      if (settled) return;
+      if (settled) {
+        return;
+      }
       settled = true;
       clearTimeout(timer);
       resolve({ stdout, stderr, code, signal, killed: child.killed });

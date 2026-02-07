@@ -1,7 +1,5 @@
 import { EventEmitter } from "node:events";
-
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
 import { resetLogger, setLoggerOverride } from "../logging.js";
 
 vi.mock("./session.js", () => {
@@ -18,8 +16,8 @@ vi.mock("./session.js", () => {
   };
 });
 
-import { loginWeb } from "./login.js";
 import type { waitForWaConnection } from "./session.js";
+import { loginWeb } from "./login.js";
 
 const { createWaSocket } = await import("./session.js");
 
@@ -35,11 +33,10 @@ describe("web login", () => {
 
   it("loginWeb waits for connection and closes", async () => {
     const sock = await createWaSocket();
-    const waiter: typeof waitForWaConnection = vi
-      .fn()
-      .mockResolvedValue(undefined);
+    const close = vi.spyOn(sock.ws, "close");
+    const waiter: typeof waitForWaConnection = vi.fn().mockResolvedValue(undefined);
     await loginWeb(false, waiter);
     await new Promise((resolve) => setTimeout(resolve, 550));
-    expect(sock.ws.close).toHaveBeenCalled();
+    expect(close).toHaveBeenCalled();
   });
 });
