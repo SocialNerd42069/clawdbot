@@ -1,6 +1,7 @@
 import type { Command } from "commander";
 import { danger } from "../globals.js";
 import { defaultRuntime } from "../runtime.js";
+import { normalizeOptionalString } from "../shared/string-coerce.js";
 import { formatDocsLink } from "../terminal/links.js";
 import { theme } from "../terminal/theme.js";
 import type { GatewayRpcOpts } from "./gateway-rpc.js";
@@ -16,7 +17,7 @@ type SystemEventOpts = GatewayRpcOpts & {
 type SystemGatewayOpts = GatewayRpcOpts & { json?: boolean };
 
 const normalizeWakeMode = (raw: unknown) => {
-  const mode = typeof raw === "string" ? raw.trim() : "";
+  const mode = normalizeOptionalString(raw) ?? "";
   if (!mode) {
     return "next-heartbeat" as const;
   }
@@ -34,7 +35,7 @@ async function runSystemGatewayCommand(
   try {
     const result = await action();
     if (opts.json || successText === undefined) {
-      defaultRuntime.log(JSON.stringify(result, null, 2));
+      defaultRuntime.writeJson(result);
     } else {
       defaultRuntime.log(successText);
     }
@@ -66,7 +67,7 @@ export function registerSystemCli(program: Command) {
     await runSystemGatewayCommand(
       opts,
       async () => {
-        const text = typeof opts.text === "string" ? opts.text.trim() : "";
+        const text = normalizeOptionalString(opts.text) ?? "";
         if (!text) {
           throw new Error("--text is required");
         }
