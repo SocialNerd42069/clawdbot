@@ -157,6 +157,10 @@ LABEL org.opencontainers.image.source="https://github.com/openclaw/openclaw" \
 
 WORKDIR /app
 
+# Sparky runtime shims that must survive image rebuilds.
+COPY --from=build /root/.bun/bin/bun /usr/local/bin/bun
+RUN ln -sf /usr/local/lib/node_modules/qmd/qmd /usr/local/bin/qmd
+
 # Install runtime system utilities missing from bookworm-slim.
 # `ca-certificates` ships in `bookworm` (full) but not in `bookworm-slim`,
 # so it must be installed explicitly here. Without it `/etc/ssl/certs/`
@@ -206,6 +210,13 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
     if [ -n "$OPENCLAW_DOCKER_APT_PACKAGES" ]; then \
       apt-get update && \
       DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends $OPENCLAW_DOCKER_APT_PACKAGES; \
+    fi
+
+# Install additional npm global packages needed by skills or extensions.
+# Example: docker build --build-arg OPENCLAW_IMAGE_NPM_GLOBAL_PACKAGES="@openai/codex@0.134.0" .
+ARG OPENCLAW_IMAGE_NPM_GLOBAL_PACKAGES=""
+RUN if [ -n "$OPENCLAW_IMAGE_NPM_GLOBAL_PACKAGES" ]; then \
+      npm install -g $OPENCLAW_IMAGE_NPM_GLOBAL_PACKAGES; \
     fi
 
 # Optionally install Chromium and Xvfb for browser automation.
